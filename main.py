@@ -260,7 +260,7 @@ class Menu(tkinter.Frame):
                     time_taken = time.time() - self.start_time
                     timer = tkinter.Label(
                         self,
-                        text=f"Time: {time_taken:.02}s",
+                        text=f"Time: {time_taken:.2f}s",
                         font=("Arial", 15),
                         bg="#555555",
                         fg="#ffffff",

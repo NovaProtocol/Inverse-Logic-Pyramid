@@ -3,23 +3,39 @@ import random
 import itertools
 import textwrap
 import time
-import typing
+from typing import Any
 
 
 class Menu(tkinter.Frame):
-    def __init__(self, root, *args, **kwargs):
+    def __init__(self, _root, *args, **kwargs):
         tkinter.Frame.__init__(self, root, *args, **kwargs)
-        self.root = root
+        self.root = _root
         self.process()
         self.done = False
         self.wins = 0
+        self.button_list = []
+        self.game_data = []
+        self.answer = []
+        self.start_time = 0
+        self.current_val = 5
+        self.current_xor = False
+        self.auto_next = False
+        self.possible_operation = {
+            "or": lambda x, y: x or y,
+            "nor": lambda x, y: not (x or y),
+            "and": lambda x, y: x and y,
+            "nand": lambda x, y: not (x and y),
+            "xor": lambda x, y: x ^ y,
+            "xnor": lambda x, y: not (x ^ y),
+        }
 
-    def generate_truth_table(self, possible_operation):
-        output = {}
-        for operation in possible_operation.keys():
+    @staticmethod
+    def generate_truth_table(operations_to_use: dict) -> dict:
+        output = dict()
+        for operation in operations_to_use.keys():
             for x, y in itertools.product([True, False], repeat=2):
                 if operation in output:
-                    result = possible_operation[operation](x, y)
+                    result = operations_to_use[operation](x, y)
                     if result in output[operation]:
                         output[operation][result].append((x, y))
                     else:
@@ -28,28 +44,28 @@ class Menu(tkinter.Frame):
                     output[operation] = {}
         return output
 
+    @staticmethod
     def check_operation_and_input(
-        self,
-        operation_lambda: dict,
-        operation: typing.List[bool],
-        input_data: typing.List[bool],
-        expected_output: typing.List[bool],
+            operation_lambda: dict,
+            operation: list[bool],
+            input_data: list[bool],
+            expected_output: list[bool],
     ) -> bool:
         for n, operation in enumerate(operation):
             if (
-                operation_lambda[operation](input_data[n], input_data[n + 1])
-                != expected_output[n]
+                    operation_lambda[operation](input_data[n], input_data[n + 1])
+                    != expected_output[n]
             ):
                 return False
         else:
             return True
 
     def generate_all_logic_combination(
-        self,
-        truth_table: dict,
-        expected_output: typing.List[bool],
-        operation_lambda: dict = None,
-    ) -> typing.List[typing.List[bool]]:
+            self,
+            truth_table: dict,
+            expected_output: list[bool],
+            operation_lambda: dict = None,
+    ) -> list[dict[str, list | Any] | dict[str, list[list] | Any]]:
         valid_combinations = []
 
         # non complicated for 1 element expected outcome
@@ -69,13 +85,13 @@ class Menu(tkinter.Frame):
         else:
             ungrouped_valid_combinations = []
             for operations in itertools.product(
-                truth_table.keys(), repeat=len(expected_output)
+                    truth_table.keys(), repeat=len(expected_output)
             ):
                 for input_data in itertools.product(
-                    [True, False], repeat=len(expected_output) + 1
+                        [True, False], repeat=len(expected_output) + 1
                 ):
                     if self.check_operation_and_input(
-                        operation_lambda, operations, input_data, expected_output
+                            operation_lambda, operations, input_data, expected_output
                     ):
                         ungrouped_valid_combinations.append(
                             {
@@ -95,17 +111,8 @@ class Menu(tkinter.Frame):
             return valid_combinations
 
     def generate_game(
-        self, levels: int = 5, hard: bool = True, final: bool = None, seed=None
+            self, levels: int = 5, hard: bool = True, final: bool = None, seed=None
     ):
-        possible_operation = {
-            "or": lambda x, y: x or y,
-            "nor": lambda x, y: not (x or y),
-            "and": lambda x, y: x and y,
-            "nand": lambda x, y: not (x and y),
-            "xor": lambda x, y: x ^ y,
-            "xnor": lambda x, y: not (x ^ y),
-        }
-
         possible_operation_list = ["or", "nor", "and", "nand"]
 
         # "XOR" and "XNOR" in case they want more challenge
@@ -117,7 +124,7 @@ class Menu(tkinter.Frame):
         truth_table = self.generate_truth_table(
             {
                 operation: lambda_function
-                for operation, lambda_function in possible_operation.items()
+                for operation, lambda_function in self.possible_operation.items()
                 if operation in possible_operation_list
             }
         )
@@ -131,13 +138,11 @@ class Menu(tkinter.Frame):
         while True:
             output = [[[], [final]]]
             for level_nth in range(levels - 1):
-                operation_count = level_nth + 1
                 target_output = output[level_nth][1]
                 valid_entries = self.generate_all_logic_combination(
-                    truth_table, target_output, possible_operation
+                    truth_table, target_output, self.possible_operation
                 )
                 if len(valid_entries) == 0:
-                    # print("No valid entries found! Retrying...")
                     break
                 chosen_operator = random.choice(
                     [entry["operation"] for entry in valid_entries]
@@ -157,18 +162,10 @@ class Menu(tkinter.Frame):
         return output
 
     def generate_output(self, operation_list: list, input_list: list):
-        possible_operation = {
-            "or": lambda x, y: x or y,
-            "nor": lambda x, y: not (x or y),
-            "and": lambda x, y: x and y,
-            "nand": lambda x, y: not (x and y),
-            "xor": lambda x, y: x ^ y,
-            "xnor": lambda x, y: not (x ^ y),
-        }
         output_list = []
         for n, operation in enumerate(operation_list):
             output_list.append(
-                possible_operation[operation](input_list[n], input_list[n + 1])
+                self.possible_operation[operation](input_list[n], input_list[n + 1])
             )
         return output_list
 
@@ -213,15 +210,7 @@ class Menu(tkinter.Frame):
         )
         back_btn.pack(pady=5, anchor=tkinter.S)
 
-    def number_only(self, entry):
-        if entry.isdigit():
-            return True
-        else:
-            return False
-
     def game_process(self):
-        for item in self.winfo_children():
-            item.destroy()
         if self.done:
             self.done = False
             self.start_game()
@@ -229,16 +218,20 @@ class Menu(tkinter.Frame):
         def answer_button(answer):
             self.button_list[answer // 2] = not self.button_list[answer // 2]
             self.game_data[-1][1] = self.button_list
-            for n, _ in enumerate(self.game_data[:-1]):
-                self.game_data[-n - 2][1] = self.generate_output(
-                    list(self.game_data[-n - 1][0]), list(self.game_data[-n - 1][1])
+            for o, _ in enumerate(self.game_data[:-1]):
+                self.game_data[-o - 2][1] = self.generate_output(
+                    list(self.game_data[-o - 1][0]), list(self.game_data[-o - 1][1])
                 )
+            for item in self.winfo_children():
+                item.destroy()
+
             if self.answer == self.game_data[0][1][0] and not self.done:
                 self.wins += 1
                 self.done = True
                 if self.auto_next:
                     self.game_process()
                 else:
+                    update_game_process()
                     tkinter.Button(
                         self,
                         text="Next",
@@ -273,69 +266,73 @@ class Menu(tkinter.Frame):
                     )
 
             if not self.done:
-                self.game_process()
+                update_game_process()
 
-        title = tkinter.Label(
-            self,
-            text="Inverse Logic Pyramid",
-            font=("Arial", 15),
-            bg="#808080",
-            fg="#ffffff",
-        )
-        title.grid(row=0, column=0, columnspan=self.current_val - 1, pady=10)
-        win_rate = tkinter.Label(
-            self,
-            text=f"Wins: {self.wins}",
-            font=("Arial", 15),
-            bg="#808080",
-            fg="#ffffff",
-        )
-        win_rate.grid(
-            row=0,
-            column=(self.current_val * 2 - 1) - (self.current_val - 1),
-            columnspan=self.current_val - 1,
-            pady=10,
-        )
+        def update_game_process():
+            title = tkinter.Label(
+                self,
+                text="Inverse Logic Pyramid",
+                font=("Arial", 15),
+                bg="#808080",
+                fg="#ffffff",
+            )
+            title.grid(row=0, column=0, columnspan=self.current_val - 1, pady=10)
+            win_rate = tkinter.Label(
+                self,
+                text=f"Wins: {self.wins}",
+                font=("Arial", 15),
+                bg="#808080",
+                fg="#ffffff",
+            )
+            win_rate.grid(
+                row=0,
+                column=(self.current_val * 2 - 1) - (self.current_val - 1),
+                columnspan=self.current_val - 1,
+                pady=10,
+            )
 
-        for m, line in enumerate(self.game_data[::-1]):
-            if m == 0:
-                ref = [
-                    val for pair in zip(line[1], tuple(line[0]) + ("",)) for val in pair
-                ]
-                for n, data in enumerate(ref):
-                    if type(data) == bool:
-                        btn = tkinter.Button(
-                            self,
-                            text=f"{int(self.button_list[n // 2]):^7}",
-                            command=lambda n=n: answer_button(n),
-                            font=("Arial", 12),
-                            bg="#808080",
-                            fg="#ffffff",
-                            height=3,
-                        )
-                        btn.grid(row=m + 1, column=n + m)
-                    else:
+            for m, line in enumerate(self.game_data[::-1]):
+                if m == 0:
+                    ref = [
+                        val for pair in zip(line[1], tuple(line[0]) + ("",)) for val in pair
+                    ]
+                    for n, data in enumerate(ref):
+                        if type(data) == bool:
+                            btn = tkinter.Button(
+                                self,
+                                text=f"{int(self.button_list[n // 2]):^7}",
+                                command=lambda _n=n: answer_button(_n),
+                                font=("Arial", 12),
+                                bg="#808080",
+                                fg="#ffffff",
+                                height=3,
+                            )
+                            btn.grid(row=m + 1, column=n + m)
+                        else:
+                            tkinter.Label(
+                                self,
+                                text=f"{data:^7}",
+                                font=("Arial", 12),
+                                bg="#808080",
+                                fg="#ffffff",
+                                height=3,
+                            ).grid(row=m + 1, column=n + m)
+                else:
+                    ref = [
+                        val for pair in zip(line[1], tuple(line[0]) + ("",)) for val in pair
+                    ]
+                    for n, data in enumerate(ref):
                         tkinter.Label(
                             self,
-                            text=f"{data:^7}",
+                            text=f"{data if type(data) == str else data:^7}",
                             font=("Arial", 12),
                             bg="#808080",
                             fg="#ffffff",
                             height=3,
                         ).grid(row=m + 1, column=n + m)
-            else:
-                ref = [
-                    val for pair in zip(line[1], tuple(line[0]) + ("",)) for val in pair
-                ]
-                for n, data in enumerate(ref):
-                    tkinter.Label(
-                        self,
-                        text=f"{data if type(data) == str else data:^7}",
-                        font=("Arial", 12),
-                        bg="#808080",
-                        fg="#ffffff",
-                        height=3,
-                    ).grid(row=m + 1, column=n + m)
+
+        update_game_process()
+
 
     def start_game(self):
         for item in self.winfo_children():
@@ -346,12 +343,13 @@ class Menu(tkinter.Frame):
         self.answer = self.game_data[0][1][0]
         self.grid_columnconfigure(tuple(range(self.current_val * 2 - 1)), weight=1)
         tries = 0
+        button_list = []
         while self.game_data[0][1][0] == self.answer:
             tries += 1
-            self.button_list = [
-                random.choice([True, False]) for x in range(self.current_val)
+            button_list = [
+                random.choice([True, False]) for _ in range(self.current_val)
             ]
-            self.game_data[-1][1] = self.button_list
+            self.game_data[-1][1] = button_list
             for n, _ in enumerate(self.game_data[:-1]):
                 self.game_data[-n - 2][1] = self.generate_output(
                     list(self.game_data[-n - 1][0]), list(self.game_data[-n - 1][1])
@@ -363,7 +361,10 @@ class Menu(tkinter.Frame):
                 )
                 self.answer = self.game_data[0][1][0]
                 tries = 0
+        self.button_list = button_list
         self.start_time = time.time()
+        for item in self.winfo_children():
+            item.destroy()
         self.game_process()
 
     def start_ui(self):
@@ -641,9 +642,9 @@ class Menu(tkinter.Frame):
         self.main_ui()
 
 
-def main(root):
-    Menu(root)
-    root.mainloop()
+def main(__root):
+    Menu(__root)
+    __root.mainloop()
 
 
 if __name__ == "__main__":
